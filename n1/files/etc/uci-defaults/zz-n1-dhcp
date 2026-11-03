@@ -1,0 +1,37 @@
+#!/bin/sh
+# N1's single Ethernet port is an upstream DHCP client on a trusted LAN.
+# This overlay does not include the shared x86 99-custom.sh.
+set -e
+
+uci set system.@system[0].hostname='ImmortalWrt-N1'
+uci -q delete network.wan || true
+uci -q delete network.wan6 || true
+uci set network.lan=interface
+uci set network.lan.device='eth0'
+uci set network.lan.proto='dhcp'
+uci set network.lan.peerdns='1'
+uci set network.lan.defaultroute='1'
+for option in ipaddr netmask gateway dns ifname ip6assign ip6addr ip6gw; do
+    uci -q delete "network.lan.$option" || true
+done
+
+# Do not advertise DHCPv4, DHCPv6, or an IPv6 default route on the upstream LAN.
+uci set dhcp.lan=dhcp
+uci set dhcp.lan.interface='lan'
+uci set dhcp.lan.ignore='1'
+uci set dhcp.lan.dhcpv6='disabled'
+uci set dhcp.lan.ra='disabled'
+uci set dhcp.lan.ndp='disabled'
+
+# Permit management from the trusted upstream LAN; retain the normal WAN policy.
+for zone in $(uci show firewall | sed -n 's/^firewall\.\([^=]*\)=zone$/\1/p'); do
+    if [ "$(uci -q get "firewall.$zone.name")" = lan ]; then
+        uci set "firewall.$zone.input=ACCEPT"
+    fi
+done
+
+uci commit system
+uci commit network
+uci commit dhcp
+uci commit firewall
+exit 0

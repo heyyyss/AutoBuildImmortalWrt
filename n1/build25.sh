@@ -127,8 +127,12 @@ sha256sum packages/*.apk files/etc/openclash/core/clash_meta >> "$build_log"
 make image PROFILE=generic PACKAGES="$PACKAGES" FILES="$PWD/files"
 
 shopt -s nullglob
-rootfs=(bin/targets/armsr/armv8/*rootfs.tar.gz)
-[[ ${#rootfs[@]} -ge 1 ]] || { echo 'Missing rootfs.tar.gz' >&2; exit 1; }
+rootfs=(bin/targets/armsr/armv8/*generic-targz-rootfs.tar.gz)
+if [[ ${#rootfs[@]} -eq 0 ]]; then
+    rootfs=(bin/targets/armsr/armv8/*generic-rootfs.tar.gz)
+fi
+[[ ${#rootfs[@]} -eq 1 ]] || { echo 'Missing or ambiguous generic rootfs archive' >&2; exit 1; }
 tar -tzf "${rootfs[0]}" > bin/n1-rootfs-files.txt
 grep -Eq '^(\./)?etc/uci-defaults/zz-n1-dhcp$' bin/n1-rootfs-files.txt
+printf '%s\n' "${rootfs[0]}" > bin/n1-rootfs-path.txt
 echo 'N1 ARM64 rootfs build complete.'

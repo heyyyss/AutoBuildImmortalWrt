@@ -83,9 +83,9 @@ jobs:
         id: rootfs
         run: |
           set -euo pipefail
-          mapfile -t files < <(find bin/targets/armsr/armv8 -type f -name '*rootfs.tar.gz')
-          test "${#files[@]}" -eq 1
-          echo "file=${files[0]}" >> "$GITHUB_OUTPUT"
+          rootfs=$(cat bin/n1-rootfs-path.txt)
+          test -f "$rootfs"
+          echo "file=$rootfs" >> "$GITHUB_OUTPUT"
 
       - name: Package Phicomm N1 image with matching kernel and DTB
         # Pin the packager whose APK and N1 support were checked for this branch.
@@ -124,5 +124,16 @@ jobs:
           path: |
             bin/n1-imagebuilder.log
             bin/n1-build-inputs.txt
+            bin/n1-rootfs-path.txt
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Include failure diagnostics in run summary
+        if: failure()
+        run: |
+          {
+            echo '### N1 build diagnostics'
+            echo '```text'
+            tail -n 100 bin/n1-imagebuilder.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

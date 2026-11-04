@@ -44,6 +44,7 @@ apkpath=$(find "$root" -name apk -type f | head -1)
 apkpath=${apkpath#"$root"}
 work=/tmp/n1-bt
 mkdir -p "$root$work/data/etc/modules.d"
+: > "$root$work/repositories"  # APK still parses this file in offline mode.
 printf 'hci_uart\nrfcomm\n' > "$root$work/data/etc/modules.d/90-n1-bluetooth"
 cat > "$root$work/pre" <<'SH'
 #!/bin/sh
@@ -61,7 +62,7 @@ cp "$root$work/$provider" "$out/n1-apks/"
 cp "$out"/n1-bluez/*.apk "$root$work/"
 args=()
 for p in "$root$work"/*.apk; do args+=("$work/${p##*/}"); done
-apk_offline() { target "$apkpath" --no-network --repositories-file /dev/null "$@"; }
+apk_offline() { target "$apkpath" --no-network --repositories-file "$work/repositories" "$@"; }
 apk_offline add --allow-untrusted --no-scripts "${args[@]}"
 apk_offline info -e bluez-daemon bluez-utils bluez-utils-extra carplay-ophub-bluetooth
 

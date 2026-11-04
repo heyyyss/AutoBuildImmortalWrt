@@ -44,7 +44,7 @@ jobs:
           retention-days: 30
   build:
     needs: apks
-    if: ${{ !inputs.packages_only }}
+    if: ${{ !inputs.packages_only && !contains(github.event.head_commit.message, '[apks only]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -60,7 +60,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y btrfs-progs dosfstools parted gdisk e2fsprogs \
             util-linux kmod device-tree-compiler pigz jq python3 zstd unzip \
-            wget gawk pv zip rename uuid-runtime qemu-user-static
+            wget gawk pv zip rename uuid-runtime qemu-user-static nftables
           bash -n n1/build25.sh n1/packages25.sh n1/verify-image.sh
           sh -n n1/files/etc/uci-defaults/zz-n1-dhcp
 
@@ -98,8 +98,9 @@ jobs:
 
       - name: Finalize and verify the N1 vehicle and router modes
         run: |
-          sudo bash n1/dashplay/package-image.sh "$PACKAGED_OUTPUTPATH" "$GITHUB_WORKSPACE/bin"
-          sudo env N1_PROFILE=dashplay bash n1/verify-image.sh "$GITHUB_WORKSPACE/bin/n1-final" "$GITHUB_WORKSPACE/bin"
+          set -eo pipefail
+          sudo bash n1/dashplay/package-image.sh "$PACKAGED_OUTPUTPATH" "$GITHUB_WORKSPACE/bin" 2>&1 | tee bin/n1-finalize.log
+          sudo env N1_PROFILE=dashplay bash n1/verify-image.sh "$GITHUB_WORKSPACE/bin/n1-final" "$GITHUB_WORKSPACE/bin" 2>&1 | tee bin/n1-verify.log
           (cd bin/n1-apks && sha256sum ./*.apk > SHA256SUMS)
           sudo chown -R "$(id -u):$(id -g)" bin
 
@@ -125,6 +126,8 @@ jobs:
             bin/n1-imagebuilder.log
             bin/n1-build-inputs.txt
             bin/n1-rootfs-path.txt
+            bin/n1-finalize.log
+            bin/n1-verify.log
           if-no-files-found: ignore
           retention-days: 14
 

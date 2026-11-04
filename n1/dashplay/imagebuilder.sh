@@ -12,11 +12,17 @@ echo "25466107142ded571eb2e90a03b157768270e1f12ea014f943f7049a2e0bac26  $work/$i
 tar -xzOf "$work/$ipk" ./data.tar.gz | tar -xzOf - ./usr/bin/btmgmt > "$compat/btmgmt"
 echo "6b99656d72278c91851e0037f9c109f7ab0492f2115586725bdb8e538992b450  $compat/btmgmt" | sha256sum -c -
 chmod 755 "$compat/btmgmt"
+chown -R 0:0 "$work/support"
 apkhost=$PWD/staging_dir/host/bin/apk
 "$apkhost" mkpkg -I name:n1-car-support -I version:1.0-r1 -I arch:aarch64_generic \
     -I description:'Phicomm N1 car mode, Bluetooth tool and TLS watcher' \
     -I license:GPL-2.0-or-later -I depends:'python3' -F "$work/support" -o "$out/n1-car-support-1.0-r1.apk"
-cp "$out"/*.apk packages/
+for file in "$out"/*.apk; do
+    name=${file##*/}
+    # apk fetches local index entries as NAME-VERSION.apk (upstream labels the JRE's arch in its release asset).
+    [[ $name != *_aarch64_generic.apk ]] || name=${name%_aarch64_generic.apk}.apk
+    cp "$file" "packages/$name"
+done
 rm -rf "$work"
 N1_PACKAGES+=" dashplay luci-app-dashplay luci-i18n-dashplay-zh-cn n1-car-support dashplay-jre"
 # All BlueZ userspace deps except bluez-libs (it requests an armsr kmod).

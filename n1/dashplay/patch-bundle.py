@@ -21,3 +21,5 @@ if __name__ == '__main__':
 
     edit(root, 'update.py', 'def launch(root, openwrt=None, version=None):',
          'def launch(root, openwrt=None, version=None):\n    raise RuntimeError("N1: install the matching DashPlay APK from your firmware build.")')
+    edit(root, 'update.py', 'def install(root, openwrt=None, key=KEY, version=None):',
+         'def install(root, openwrt=None, key=KEY, version=None):\n    raise RuntimeError("N1: install the matching DashPlay APK from your firmware build.")')

@@ -34,4 +34,4 @@ a = start.index("\t\tuci.sections('wireless'")
 end = start.index("o.value('external',", a)
 (feed / ui).write_text(start[:a] + start[start.index('\n', end):])
 edit(feed, 'luci-app-dashplay/Makefile', 'include $(TOPDIR)/feeds/luci/luci.mk',
-     'PKG_VERSION:=0.261102.35991\nPKG_RELEASE:=' + sys.argv[2] + '\nPKG_PO_VERSION:=0.261102.35991-r' + sys.argv[2] + '\ninclude $(TOPDIR)/feeds/luci/luci.mk')
+     'PKG_VERSION:=0.261102.35991\nPKG_RELEASE:=' + sys.argv[3] + '\nPKG_PO_VERSION:=0.261102.35991-r' + sys.argv[3] + '\ninclude $(TOPDIR)/feeds/luci/luci.mk')

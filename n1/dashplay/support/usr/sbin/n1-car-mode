@@ -44,6 +44,8 @@ def lists(key, values):
     dirty.add(key.split('.')[0])
 
 def save(state):
+    if STATE.is_file() and json.loads(STATE.read_text()) == state:
+        return
     STATE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with tempfile.NamedTemporaryFile('w', dir=STATE.parent, delete=False) as out:
         json.dump(state, out)
@@ -51,10 +53,10 @@ def save(state):
         os.fsync(out.fileno())
     os.replace(out.name, STATE)
 
-def section(key, kind, **options):
-    put(key, kind)
+def section(path, kind, /, **options):
+    put(path, kind)
     for name, value in options.items():
-        put(key + '.' + name, value)
+        put(path + '.' + name, value)
 
 owned = ['wireless.n1_car', 'network.n1_car_bridge', 'network.carplay', 'dhcp.carplay',
          'firewall.n1_car', 'firewall.n1_usb', 'firewall.n1_uplink', 'firewall.n1_nat', 'firewall.n1_https']
@@ -118,7 +120,7 @@ def reconcile(on, live=True):
                 orig, _ = state['https'][s]
                 lists(s+'.listen_https',[v for v in orig if v != '443' and not v.endswith(':443')])
                 put(s+'.redirect_https','0')
-            section('firewall.n1_https','include',type='nftables',position='table-post',
+            section('firewall.n1_https','include',type='nftables',position='table-append',
                     path='/usr/share/n1-car/viewer.nft')
         else:
             remove('firewall.n1_https')

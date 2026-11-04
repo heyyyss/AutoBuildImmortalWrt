@@ -1,6 +1,7 @@
 #!/bin/bash
 # Called on the mounted final Btrfs/boot partitions, before producing the deliverable.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'echo "Final kernel setup failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 root=$1 boot=$2 out=$3
 here=$(cd "$(dirname "$0")" && pwd)
 kernel=6.12.115-ophub
@@ -74,6 +75,9 @@ done
 test -e "$root/etc/modules.conf" || touch "$root/etc/modules.conf"
 test -s "$modules/modules.dep.bin" || depmod -b "$root" "$kernel"
 python3 "$here/fast-plan.py" "$root" "$kernel"
+mkdir -p "$root/proc" "$root/dev"
+mount -t proc proc "$root/proc"
+trap 'umount "$root/proc"' EXIT
 target /usr/bin/python3 -c 'import sys; assert sys.version_info >= (3,11); import ssl, ctypes'
 # The installed JRE path comes from the package itself.
 target /usr/lib/dashplay-jre/bin/java -Xint -Xmx32m -version 2>&1 | grep '21\.0\.'

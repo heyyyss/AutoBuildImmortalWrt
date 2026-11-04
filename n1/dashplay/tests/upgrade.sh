@@ -8,6 +8,15 @@ mount -t overlay overlay -o "lowerdir=$root,upperdir=$work/upper,workdir=$work/o
 trap 'umount "$work/upgrade"' EXIT
 r=$work/upgrade
 cp "$(command -v qemu-aarch64-static)" "$r/tmp/n1-qemu"
+for mode in on off; do
+    cp "$work/firewall-$mode" "$r/etc/config/firewall"
+    ACTION=print chroot "$r" /tmp/n1-qemu /usr/bin/utpl -S /usr/share/firewall4/main.uc > "$work/fw4-$mode.nft"
+done
+grep -q dpncm "$work/fw4-on.nft"
+grep -q 'jump input_carplay_usb' "$work/fw4-on.nft"
+grep -Fq '/usr/share/n1-car/viewer.nft' "$work/fw4-on.nft"
+if grep -Eq 'dpncm|usr/share/n1-car/viewer.nft' "$work/fw4-off.nft"; then exit 1; fi
+echo 'Packaged fw4: car mode selects dpncm and native 443 rules; router mode selects neither.'
 mkdir -p "$r/tmp/pkgtest" "$r/opt/dashplay/state" "$r/opt/dashplay/identity" "$r/etc/bluetooth/keys"
 for f in opt/dashplay/state/n1-probe opt/dashplay/identity/n1-probe etc/bluetooth/keys/n1-probe; do
     echo offline-upgrade-fixture > "$r/$f"

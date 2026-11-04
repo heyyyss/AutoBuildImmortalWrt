@@ -3,8 +3,10 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 out=$(realpath -m "${1:?output directory}")
-release=${N1_PKG_RELEASE:-2}
-[[ $release =~ ^[1-9][0-9]*$ ]] || exit 2
+source "$here/revisions.env"
+release=${N1_CORE_RELEASE:?}
+ui_release=${N1_LUCI_RELEASE:?}
+[[ $release =~ ^[1-9][0-9]*$ && $ui_release =~ ^[1-9][0-9]*$ ]] || exit 2
 temp=$(mktemp -d)
 trap 'rm -rf "$temp"' EXIT
 if [[ -n ${N1_FEED:-} ]]; then
@@ -14,7 +16,7 @@ else
     git -C "$temp/feed" fetch -q --depth=1 https://github.com/yizhixiaoheigou/openwrt-dashplay f6d20b93a9aa2241f8833c7277e5c24a54b91f52
     git -C "$temp/feed" checkout -q --detach FETCH_HEAD
 fi
-python3 "$here/prepare-feed.py" "$temp/feed" "$release"
+python3 "$here/prepare-feed.py" "$temp/feed" "$release" "$ui_release"
 mkdir -p "$out" "$temp/dl"
 if [[ -n ${N1_BUNDLE:-} ]]; then
     bundle=$(sed -n 's/^PKG_VERSION:=//p' "$temp/feed/dashplay/Makefile")

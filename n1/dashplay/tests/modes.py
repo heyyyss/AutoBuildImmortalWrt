@@ -3,6 +3,7 @@ import importlib.machinery
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -14,7 +15,7 @@ def apply(on):
     mod.dirty.clear()
     mod.reconcile(on, live=False)
 def baseline():
-    return [u('export',p) for p in ('network','dhcp','wireless','firewall','uhttpd')]
+    return [sorted(u('-X','show',p).splitlines()) for p in ('network','dhcp','wireless','firewall','uhttpd')]
 Path(os.environ['N1_UCI_CONFIG'],'wireless').touch(exist_ok=True)
 for assignment in ['wireless.radio0=wifi-device','wireless.radio0.type=mac80211','wireless.radio0.disabled=1',
                    'wireless.radio0.channel=auto','wireless.home=wifi-iface','wireless.home.device=radio0',
@@ -34,6 +35,7 @@ for _ in range(2):
     assert u('get','firewall.n1_uplink.src')=='carplay' and u('get','firewall.n1_nat.src_ip')=='100.96.0.0/24'
     for http in mod.sections('uhttpd','uhttpd'):
         assert not any(v.endswith(':443') for v in (mod.get(http+'.listen_https') or '').splitlines())
+    shutil.copyfile(Path(os.environ["N1_UCI_CONFIG"],"firewall"),Path(sys.argv[2])/"firewall-on")
     on=baseline()
     apply(True)
     assert on==baseline()
@@ -42,6 +44,7 @@ for _ in range(2):
     if key: assert key==st['key'] and mac==st['mac']
     key,mac=st['key'],st['mac']
     apply(False)
+    shutil.copyfile(Path(os.environ["N1_UCI_CONFIG"],"firewall"),Path(sys.argv[2])/"firewall-off")
     assert before==baseline(), 'off did not restore original UCI'
     apply(False)
     assert before==baseline()

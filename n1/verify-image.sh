@@ -118,6 +118,14 @@ sh "$work/root/etc/uci-defaults/zz-n1-dhcp"
 test "$first" = "$(sha256sum "$N1_UCI_CONFIG"/*)"
 printf 'DHCP client / no DHCP server / no IPv6 RA: OK\nFirst-boot script idempotence: OK\nHardware boot test: not performed\n' | tee -a "$report"
 
+if [[ ${N1_PROFILE:-router} == dashplay ]]; then
+    here=$(cd "$(dirname "$0")" && pwd)
+    python3 "$here/dashplay/tests/modes.py" "$work/root/usr/sbin/n1-car-mode" "$work" | tee -a "$report"
+    unshare -n nft --check -f <(printf 'table inet fw4 {\n'; cat "$work/root/usr/share/n1-car/viewer.nft"; printf '}\n')
+    bash "$here/dashplay/tests/upgrade.sh" "$work/root" "$work" "$output_dir/n1-apks" | tee -a "$report"
+    printf 'Native HTTPS 443, N1 drivers, Wi-Fi script, Python/Java, Bluetooth dependency and 2 GiB root verified during finalization. Physical N1 / iPad / Tesla tests pending.\n' | tee -a "$report"
+fi
+
 cp "${images[0]}" "$output_dir/n1-firmware/"
 cd "$output_dir/n1-firmware"
 sha256sum ./*.img.gz > SHA256SUMS

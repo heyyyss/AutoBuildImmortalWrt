@@ -95,6 +95,10 @@ for database in geoip geosite; do
         -o "files/etc/openclash/$output.dat"
 done
 
+if [[ ${N1_PROFILE:-router} == dashplay ]]; then
+    source /n1/dashplay/imagebuilder.sh
+fi
+
 # Keep the ImageBuilder's OWN 25.12 config; the 24.10 n1/imm.config is incompatible.
 # Only generate a rootfs archive: ophub supplies the N1 kernel, DTB and bootloader.
 python3 - <<'PY'
@@ -126,6 +130,9 @@ printf 'Requested packages: %s\n' "$PACKAGES" | tee -a "$build_log"
 sha256sum packages/*.apk files/etc/openclash/core/clash_meta >> "$build_log"
 make image PROFILE=generic PACKAGES="$PACKAGES" FILES="$PWD/files"
 
+if [[ ${N1_PROFILE:-router} == dashplay ]]; then
+    make -f Makefile -f /n1/dashplay/fetch-bluez.mk n1-bluez
+fi
 shopt -s nullglob
 rootfs=(bin/targets/armsr/armv8/*generic-targz-rootfs.tar.gz)
 if [[ ${#rootfs[@]} -eq 0 ]]; then

@@ -1,0 +1,139 @@
+name: Build N1 DashPlay 25.12.1
+
+on:
+  push:
+    branches: [n1-25-dashplay]
+    paths: ['n1/**', '.github/workflows/build-N1-DashPlay.yml']
+  workflow_dispatch:
+    inputs:
+      packages_only:
+        description: '仅构建独立升级用的 DashPlay / LuCI APK'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n1-dashplay-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LUCI_VERSION: '25.12.1'
+  N1_KERNEL: '6.12.115'
+  N1_PROFILE: dashplay
+  INCLUDE_PASSWALL2: 'no'
+  INCLUDE_DOCKER: 'no'
+  ROOTFS_PARTSIZE: '2048'
+
+jobs:
+  apks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build native HTTPS Core and LuCI APKs
+        run: bash n1/dashplay/build-apks.sh bin/n1-apks
+      - name: Hash update set
+        run: cd bin/n1-apks && sha256sum ./*.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n1-dashplay-update-apks-${{ github.run_number }}
+          path: bin/n1-apks
+          if-no-files-found: error
+          retention-days: 30
+  build:
+    needs: apks
+    if: ${{ !inputs.packages_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: n1-dashplay-update-apks-${{ github.run_number }}
+          path: bin/n1-apks
+      - name: Install N1 packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y btrfs-progs dosfstools parted gdisk e2fsprogs \
+            util-linux kmod device-tree-compiler pigz jq python3 zstd unzip \
+            wget gawk pv zip rename uuid-runtime qemu-user-static
+          bash -n n1/build25.sh n1/packages25.sh n1/verify-image.sh
+          sh -n n1/files/etc/uci-defaults/zz-n1-dhcp
+
+      - name: Build ImmortalWrt 25 ARM64 rootfs with selected APKs
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          docker run --rm --user root \
+            -v "$GITHUB_WORKSPACE/bin:/home/build/immortalwrt/bin" \
+            -v "$GITHUB_WORKSPACE/n1:/n1:ro" \
+            -e INCLUDE_DOCKER -e INCLUDE_PASSWALL2 -e N1_PROFILE \
+            "immortalwrt/imagebuilder:armsr-armv8-openwrt-${LUCI_VERSION}" \
+            /bin/bash /n1/build25.sh 2>&1 | tee bin/n1-imagebuilder.log
+
+      - name: Locate generated rootfs
+        id: rootfs
+        run: |
+          set -euo pipefail
+          rootfs=$(cat bin/n1-rootfs-path.txt)
+          test -f "$rootfs"
+          echo "file=$rootfs" >> "$GITHUB_OUTPUT"
+
+      - name: Package Phicomm N1 image with matching kernel and DTB
+        # Pin the packager whose APK and N1 support were checked for this branch.
+        uses: ophub/amlogic-s9xxx-openwrt@c7578a7699ad2c002eca81e4b131b5c73c708845
+        with:
+          openwrt_path: ${{ steps.rootfs.outputs.file }}
+          openwrt_board: s905d
+          kernel_repo: ophub/kernel
+          kernel_usage: stable
+          openwrt_kernel: ${{ env.N1_KERNEL }}
+          auto_kernel: false
+          openwrt_size: 384/${{ env.ROOTFS_PARTSIZE }}
+          builder_name: heyyyss
+
+      - name: Finalize and verify the N1 vehicle and router modes
+        run: |
+          sudo bash n1/dashplay/package-image.sh "$PACKAGED_OUTPUTPATH" "$GITHUB_WORKSPACE/bin"
+          sudo env N1_PROFILE=dashplay bash n1/verify-image.sh "$GITHUB_WORKSPACE/bin/n1-final" "$GITHUB_WORKSPACE/bin"
+          (cd bin/n1-apks && sha256sum ./*.apk > SHA256SUMS)
+          sudo chown -R "$(id -u):$(id -g)" bin
+
+      - name: Upload N1 firmware and verification report
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-${{ env.LUCI_VERSION }}-phicomm-n1-dashplay-${{ github.run_number }}
+          path: |
+            bin/n1-firmware/*
+            bin/n1-build-inputs.txt
+            bin/n1-apks/*
+            bin/n1-final-packages.txt
+            bin/targets/armsr/armv8/*.manifest
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n1-dashplay-build-log-${{ github.run_number }}
+          path: |
+            bin/n1-imagebuilder.log
+            bin/n1-build-inputs.txt
+            bin/n1-rootfs-path.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Include failure diagnostics in run summary
+        if: failure()
+        run: |
+          {
+            echo '### N1 build diagnostics'
+            echo '```text'
+            tail -n 100 bin/n1-imagebuilder.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

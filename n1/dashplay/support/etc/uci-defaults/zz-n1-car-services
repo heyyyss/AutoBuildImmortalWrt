@@ -1,0 +1,9 @@
+#!/bin/sh
+# Only runtime identities are initialized here. Never import configured-device data.
+set -eu
+mkdir -p /opt/dashplay/state/receiver /opt/dashplay/identity/offline-mfi /etc/bluetooth/keys /etc/crontabs
+chmod 700 /opt/dashplay/state /opt/dashplay/identity /opt/dashplay/identity/offline-mfi /etc/bluetooth/keys
+touch /etc/crontabs/root
+grep -qF '/usr/libexec/n1-tls-idle.py' /etc/crontabs/root ||
+    echo '*/15 * * * * /usr/bin/python3 /usr/libexec/n1-tls-idle.py >/dev/null' >> /etc/crontabs/root
+exit 0

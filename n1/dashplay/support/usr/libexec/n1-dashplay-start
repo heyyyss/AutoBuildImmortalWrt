@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run under procd. No polling or waiting in the synchronous boot sequence.
+set -eu
+i=0
+while ! /usr/sbin/n1-car-mode apply; do
+    i=$((i + 1)); [ "$i" -lt 12 ] || exit 1
+    sleep 2
+done
+[ "$(uci -q get dashplay.main.enabled)" = 1 ] || exit 0
+i=0
+while [ ! -d /sys/class/bluetooth/hci0 ] && [ "$i" -lt 10 ]; do sleep 1; i=$((i+1)); done
+exec /usr/bin/python3 /opt/dashplay/supervisor_openwrt.py --root /opt/dashplay

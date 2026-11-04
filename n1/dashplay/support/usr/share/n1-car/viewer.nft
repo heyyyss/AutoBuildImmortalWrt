@@ -1,0 +1,11 @@
+# fw4 loads this only with vehicle mode and the native 443 listener enabled.
+chain n1_viewer_input {
+    type filter hook input priority filter - 1; policy accept;
+    iifname "lo" tcp dport 443 return
+    iifname { "eth0", "br-carplay" } meta nfproto ipv4 tcp dport 443 return
+    tcp dport 443 drop
+}
+chain n1_viewer_legacy {
+    type nat hook prerouting priority dstnat - 1; policy accept;
+    iifname { "eth0", "br-carplay" } meta nfproto ipv4 fib daddr type local tcp dport 65367 redirect to :443
+}

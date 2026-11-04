@@ -1,0 +1,28 @@
+#!/bin/bash
+# Disposable overlay on the packaged image. Exercise apk's file/database operations
+# independently for Core and LuCI without invoking init scripts on a build host.
+set -euo pipefail
+root=$1 work=$2 apks=$3
+mkdir -p "$work"/{upgrade,upper,owork}
+mount -t overlay overlay -o "lowerdir=$root,upperdir=$work/upper,workdir=$work/owork" "$work/upgrade"
+trap 'umount "$work/upgrade"' EXIT
+r=$work/upgrade
+cp "$(command -v qemu-aarch64-static)" "$r/tmp/n1-qemu"
+mkdir -p "$r/tmp/pkgtest" "$r/opt/dashplay/state" "$r/opt/dashplay/identity" "$r/etc/bluetooth/keys"
+for f in opt/dashplay/state/n1-probe opt/dashplay/identity/n1-probe etc/bluetooth/keys/n1-probe; do
+    echo offline-upgrade-fixture > "$r/$f"
+done
+config=$(sha256sum "$r/etc/config/dashplay")
+cp "$apks"/*.apk "$r/tmp/pkgtest/"
+path=$(find "$r" -type f -name apk -print -quit); apk() { chroot "$r" /tmp/n1-qemu "${path#"$r"}" "$@"; }
+args=()
+for f in "$r"/tmp/pkgtest/*.apk; do args+=("/tmp/pkgtest/${f##*/}"); done
+apk mkndx --allow-untrusted -o /tmp/pkgtest/packages.adb "${args[@]}"
+for p in dashplay luci-app-dashplay luci-i18n-dashplay-zh-cn; do
+    apk --no-network --repositories-file /dev/null -X /tmp/pkgtest/packages.adb --allow-untrusted --no-scripts fix --reinstall "$p"
+    for f in opt/dashplay/state/n1-probe opt/dashplay/identity/n1-probe etc/bluetooth/keys/n1-probe; do
+        grep -qx offline-upgrade-fixture "$r/$f"
+    done
+    test "$config" = "$(sha256sum "$r/etc/config/dashplay")"
+done
+echo 'Independent APK reinstall: Core, LuCI and Chinese locale retain config / identity / state / Bluetooth keys (offline hooks disabled).'

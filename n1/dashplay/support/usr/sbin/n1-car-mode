@@ -1,0 +1,189 @@
+#!/usr/bin/python3
+"""Reconcile the dedicated N1 AP with the one LuCI/procd switch. Never edit network.lan."""
+import fcntl
+import json
+import os
+import re
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import tempfile
+
+STATE = Path('/etc/n1-car/mode.json')
+INIT = '/etc/init.d/dashplay'
+def run(*args, check=True):
+    return subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+def get(key):
+    result = run('uci', '-q', '-d', '\n', 'get', key, check=False)
+    return result.stdout.rstrip('\n') if not result.returncode else None
+
+def remove(key):
+    if get(key) is not None:
+        run('uci', 'delete', key)
+        dirty.add(key.split('.')[0])
+
+def put(key, value):
+    if value is None:
+        return remove(key)
+    if get(key) != value:
+        run('uci', 'set', key + '=' + value)
+        dirty.add(key.split('.')[0])
+
+def sections(package, kind):
+    data = run('uci', '-X', '-q', 'show', package, check=False).stdout.splitlines()
+    return [s.split('=', 1)[0] for s in data if s.endswith('=' + kind) and s.split('=')[0].count('.') == 1]
+
+def lists(key, values):
+    if (get(key) or '').splitlines() == values:
+        return
+    remove(key)
+    for v in values:
+        run('uci', 'add_list', key + '=' + v)
+    dirty.add(key.split('.')[0])
+
+def save(state):
+    STATE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.NamedTemporaryFile('w', dir=STATE.parent, delete=False) as out:
+        json.dump(state, out)
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(out.name, STATE)
+
+def section(key, kind, **options):
+    put(key, kind)
+    for name, value in options.items():
+        put(key + '.' + name, value)
+
+owned = ['wireless.n1_car', 'network.n1_car_bridge', 'network.carplay', 'dhcp.carplay',
+         'firewall.n1_car', 'firewall.n1_usb', 'firewall.n1_uplink', 'firewall.n1_nat', 'firewall.n1_https']
+dirty = set()
+
+def reconcile(on, live=True):
+    state = json.loads(STATE.read_text()) if STATE.exists() else {}
+    if on:
+        radios = sections('wireless', 'wifi-device')
+        if not radios and live:
+            run('wifi', 'config', check=False)
+            radios = sections('wireless', 'wifi-device')
+        if not radios:
+            raise RuntimeError('N1 radio not enumerated yet')
+        radio = state.get('radio') or radios[0]
+        if radio not in radios:
+            raise RuntimeError('Saved N1 radio does not exist')
+        if not state.get('active'):
+            for k in owned:
+                if get(k) is not None:
+                    raise RuntimeError('Existing UCI section requires review: ' + k)
+            keys = [radio + '.' + opt for opt in ('country','band','channel','htmode','disabled')]
+            keys += [s + '.disabled' for s in sections('wireless','wifi-iface') if get(s+'.device') == radio.split('.')[1]]
+            state.update(active=True, radio=radio, previous={k:get(k) for k in keys},
+                         https={}, pending=True)
+            state.setdefault('key', secrets.token_urlsafe(18))
+            state.setdefault('mac', '02:' + ':'.join(f'{v:02x}' for v in secrets.token_bytes(5)))
+            save(state)  # journal before touching any UCI config
+        if live:
+            nv = Path('/lib/firmware/brcm/brcmfmac43455-sdio.phicomm,n1.txt')
+            txt = nv.read_text()
+            changed, count = re.subn(r'(?mi)^macaddr=[^\r\n]*', 'macaddr='+state['mac'], txt)
+            if not count: changed = txt.rstrip()+'\nmacaddr='+state['mac']+'\n'
+            if changed != txt:
+                tmp = nv.with_suffix('.new')
+                tmp.write_text(changed)
+                os.chmod(tmp,0o644)
+                os.replace(tmp,nv)
+        for key in state['previous']:
+            if not key.startswith(radio+'.'):
+                put(key,'1')
+        for k,v in dict(country='CN', band='5g', channel='149', htmode='VHT20', disabled='0').items():
+            put(radio+'.'+k,v)
+        section('network.n1_car_bridge','device',type='bridge',name='br-carplay',bridge_empty='1')
+        section('network.carplay','interface',device='br-carplay',proto='static',ipaddr='100.96.0.1',netmask='255.255.255.0')
+        section('wireless.n1_car','wifi-iface',device=radio.split('.')[1],mode='ap',network='carplay',
+                ssid=state.get('ssid','DashPlay-N1'), encryption='psk2+ccmp', key=state['key'], macaddr=state['mac'])
+        section('dhcp.carplay','dhcp',interface='carplay',start='100',limit='100',leasetime='12h',ignore='0',ra='disabled',dhcpv6='disabled',ndp='disabled')
+        section('firewall.n1_car','zone',name='carplay',input='ACCEPT',output='ACCEPT',forward='REJECT')
+        lists('firewall.n1_car.network',['carplay'])
+        section('firewall.n1_usb','zone',name='carplay_usb',input='ACCEPT',output='ACCEPT',forward='REJECT')
+        lists('firewall.n1_usb.device',['dpncm'])
+        section('firewall.n1_uplink','forwarding',src='carplay',dest='lan')
+        section('firewall.n1_nat','nat',name='N1 hotspot uplink',src='lan',src_ip='100.96.0.0/24',family='ipv4',target='MASQUERADE')
+        put('dashplay.main.wifi','n1_car')
+        if get('dashplay.main.viewer_port') == '443':
+            for s in sections('uhttpd','uhttpd'):
+                if s not in state['https']:
+                    state['https'][s] = [(get(s+'.listen_https') or '').splitlines(),get(s+'.redirect_https')]
+                    save(state)
+                orig, _ = state['https'][s]
+                lists(s+'.listen_https',[v for v in orig if v != '443' and not v.endswith(':443')])
+                put(s+'.redirect_https','0')
+            section('firewall.n1_https','include',type='nftables',position='table-post',
+                    path='/usr/share/n1-car/viewer.nft')
+        else:
+            remove('firewall.n1_https')
+    elif state.get('active'):
+        # The supervisor's own local records may outlive its process.
+        dns = sections('dhcp','dnsmasq')
+        names = {get('dhcp.dashplay.name'),get('dhcp.dashplay6.name')}
+        rebind = Path('/opt/dashplay/state/dns-rebind-name')
+        if rebind.is_file():
+            names.add(rebind.read_text().strip())
+        for k in ('dhcp.dashplay','dhcp.dashplay6'):
+            if get(k) == 'domain': remove(k)
+        for s in dns:
+            for opt in ('server','rebind_domain'):
+                k = s+'.'+opt
+                values = (get(k) or '').splitlines()
+                lists(k,[v for v in values if v not in {'/'+n+'/' for n in names if n}])
+        for k in owned: remove(k)
+        for k,v in state['previous'].items():
+            if get(k.rsplit('.',1)[0]) is not None: put(k,v)
+    else:
+        return
+    if not on or get('dashplay.main.viewer_port') != '443':
+        for s,(ports,redirect) in state.get('https',{}).items():
+            lists(s+'.listen_https',ports)
+            put(s+'.redirect_https',redirect)
+    pending = set(state.get('reload',[])) | dirty
+    state['reload'] = sorted(pending)
+    save(state)
+    for pkg in sorted(dirty):
+        run('uci','commit',pkg)
+    if live:
+        if {'network','wireless'} & pending: run('ubus','call','network','reload')
+        for pkg,svc,action in [('firewall','firewall','reload'),('dhcp','dnsmasq','reload'),('uhttpd','uhttpd','restart')]:
+            if pkg in pending: run('/etc/init.d/'+svc,action)
+        if on:
+            if run('/etc/init.d/bluetoothd','running',check=False).returncode:
+                run('/etc/init.d/bluetoothd','start')
+        elif run('/etc/init.d/bluetoothd','enabled',check=False).returncode:
+            run('/etc/init.d/bluetoothd','stop')
+    if not on:
+        state = {k:state[k] for k in ('key','mac','ssid') if k in state}
+    else:
+        if get('dashplay.main.viewer_port') != '443': state['https']={}
+        state.pop('pending',None)
+    state.pop('reload',None)
+    save(state)
+
+def main():
+    os.umask(0o077)
+    cmd = sys.argv[1:] or ['status']
+    if cmd[0] in ('on','off'):
+        run('uci','set','dashplay.main.enabled='+('1' if cmd[0]=='on' else '0'))
+        run('uci','commit','dashplay')
+        os.execl(INIT,INIT,'restart')
+    on = get('dashplay.main.enabled') == '1'
+    if cmd == ['status']:
+        active = STATE.exists() and json.loads(STATE.read_text()).get('active',False)
+        print('requested='+('on' if on else 'off'), 'network='+('carplay' if active else 'router'))
+    elif cmd == ['apply']:
+        with open('/var/lock/n1-car-mode.lock','a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            reconcile(on)
+    else:
+        sys.exit('usage: n1-car-mode {on|off|status|apply}')
+
+if __name__ == '__main__':
+    main()

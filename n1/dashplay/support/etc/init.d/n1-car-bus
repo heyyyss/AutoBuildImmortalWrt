@@ -1,0 +1,7 @@
+#!/bin/sh /etc/rc.common
+# Start the packaged service early without changing its package-owned init file.
+START=18
+start() {
+    [ "$(uci -q get dashplay.main.enabled)" = 1 ] || return 0
+    /etc/init.d/dbus running || /etc/init.d/dbus start
+}

@@ -2,7 +2,7 @@
 
 基于 `n1-25-dhcp` 的 25.12.1，保留 OpenClash、Lucky、DDNS-Go、WireGuard、Tailscale、LuCI/SSH 等旁路由组件。此配置不预装 PassWall2 和 Docker。专用镜像固定 ophub 6.12.115、N1 DTB 和 2048 MiB 根分区，仅适合实体 N1；先用另一只 U 盘验证。
 
-[完整构建 #3](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41808136465) 对应运行时代码 `0eda0cf`。完整产物包含 USB 镜像、成品验证报告、校验和，以及 Core 2026.11.02-r2、LuCI 和中文包 0.261102.35991-r3。新镜像尚未上 N1 实测。
+[完整构建 #3](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41808136465) 对应运行时代码 `0eda0cf`。完整产物包含 USB 镜像、成品验证报告、校验和，以及 Core 2026.11.02-r2、LuCI 和中文包 0.261102.35991-r3。该镜像已在 N1 从 U 盘启动，iPad 已实测有线及无线 CarPlay。
 
 ## 开关和首次使用
 
@@ -19,6 +19,10 @@ n1-car-mode on
 车载模式默认开启。首次从 eth0 登录后，在 LuCI 无线页面查看本机生成的热点密码，或在自己的 SSH 会话执行 `uci -q get wireless.n1_car.key`。热点 `DashPlay-N1` 使用独立的 `br-carplay`、100.96.0.1/24、WPA2/CCMP 和独立 DHCP；默认按已实测的 CN/149/VHT20 配置，其他地区需按当地可用信道调整配置源。Wi-Fi AP 地址和密码按设备生成并跨开关保留。Tailscale 与 Tesla 热点的地址范围重叠，使用 Tesla 模式时先不要开启 Tailscale。USB 动态接口 dpncm 仅放行本机输入输出，不对家庭 LAN 转发。
 
 打开时 LuCI HTTP 管理保留，观看服务直接监听 HTTPS 443，旧 65367 只转发本机目标流量。关闭时停止接收端和车载专用蓝牙，撤销热点、地址池、上行 NAT 和车载防火墙规则，归还之前的无线设置及 LuCI HTTPS 监听；证书任务直接退出。设置页在热点内是 `http://100.96.0.1:18080/`。浏览器观看使用自己配置的域名。认证身份、DuckDNS 账号、证书和配对均需在设备上配置；公共镜像不含这些数据。应用升级保留状态和身份，系统备份含有私密材料，请自行保管。
+
+从 `n1-car-support 1.0-r3` 起，iPhone 开启「个人热点 → 允许其他人加入」并插入 N1 后，同一根线可传有线 CarPlay 并为热点供网。iPad 或车机继续连接 `DashPlay-N1`。家庭网线和手机都可用时，默认优先使用家庭网线。USB 接口 `iphone_usb` 通过 DHCP 获取地址，只有车载热点获准向它转发；关闭车载模式会撤销这些规则。
+
+拔线后无线 CarPlay 可以接手。若插回的是本次开机以来已同时提供过有线 CarPlay 和外网的同一部手机，共享已开启但 USB 链路仍未就绪，支持包会通过 DashPlay 将会话切回有线。只用无线、多个已配对手机、不同手机或 USB 已正常供网时，支持包不会发起这个切换。手机识别记录只保存在本次开机的内存目录里。2026-11-04 在构建 #3 的 U 盘上实测了重启及同一部 iPhone 实际拔插，iPad 的外网和 CarPlay 画面、触控均自动恢复。r3 的整机镜像留待下次构建。
 
 ## 独立升级和二次开发
 

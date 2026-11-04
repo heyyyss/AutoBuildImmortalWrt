@@ -16,6 +16,10 @@ for mod in bluetooth hci_uart btbcm rfcomm; do
     test -s "$file"
     [[ $(modinfo -F vermagic "$file") == "$kernel "* ]]
 done
+grep -qx 'CONFIG_USB_IPHETH=m' "$cfg"
+ipheth="$modules/kernel/drivers/net/usb/ipheth.ko"
+test -s "$ipheth"
+[[ $(modinfo -F vermagic "$ipheth") == "$kernel "* ]]
 fw="$root/lib/firmware/brcm"
 test -s "$fw/BCM4345C0.hcd"
 wifi="$root/lib/netifd/wireless/mac80211.sh"
@@ -68,7 +72,7 @@ apk_offline info -e bluez-daemon bluez-utils bluez-utils-extra carplay-ophub-blu
 
 # BlueZ is started at 19 only for car mode; dbus remains a shared system service.
 rm -f "$root"/etc/rc.d/S*bluetoothd
-for item in '18 n1-car-bus' '19 n1-car-bt' '21 dashplay'; do
+for item in '18 n1-car-bus' '19 n1-car-bt' '19 n1-iphone-usb' '21 dashplay'; do
     read -r order service <<< "$item"
     rm -f "$root"/etc/rc.d/S*"$service"
     ln -s "../init.d/$service" "$root/etc/rc.d/S$order$service"

@@ -64,7 +64,31 @@ def section(path, kind, /, **options):
 
 owned = ['wireless.n1_car', 'network.n1_car_bridge', 'network.carplay', 'dhcp.carplay',
          'firewall.n1_car', 'firewall.n1_usb', 'firewall.n1_uplink', 'firewall.n1_nat', 'firewall.n1_https']
+iphone_sections = {
+    'network.iphone_usb': ('interface', dict(proto='dhcp', device='iphonewan0', metric='70', delegate='0')),
+    'firewall.n1_iphone_wan': ('zone', dict(name='iphonewan', network=['iphone_usb'], input='REJECT',
+                                            output='ACCEPT', forward='REJECT', masq='1', mtu_fix='1')),
+    'firewall.n1_car_to_iphone': ('forwarding', dict(src='carplay', dest='iphonewan')),
+    'firewall.n1_iphone_dhcp': ('rule', dict(name='N1 iPhone DHCP renew', src='iphonewan', family='ipv4',
+                                            proto='udp', dest_port='68', target='ACCEPT')),
+}
 dirty = set()
+
+def claim_iphone_sections(state):
+    if state.get('iphone_usb_owned'):
+        return
+    # Build #3 may already have the tested hand-installed sections. Adopt only exact matches.
+    for path, (kind, options) in iphone_sections.items():
+        if get(path) is None:
+            continue
+        lines = run('uci', '-q', 'show', path).stdout.splitlines()
+        keys = {line.split('=', 1)[0] for line in lines}
+        if (get(path) != kind or keys != {path, *(path+'.'+key for key in options)}
+                or any(get(path+'.'+k) != ('\n'.join(v) if isinstance(v, list) else v)
+                       for k, v in options.items())):
+            raise RuntimeError('Existing UCI section requires review: ' + path)
+    state['iphone_usb_owned'] = True
+    save(state)
 
 def reconcile(on, live=True):
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
@@ -87,6 +111,8 @@ def reconcile(on, live=True):
             for k in owned:
                 if get(k) is not None:
                     raise RuntimeError('Existing UCI section requires review: ' + k)
+        claim_iphone_sections(state)
+        if not state.get('active'):
             keys = [radio + '.' + opt for opt in ('country','band','channel','htmode','disabled')]
             keys += [s + '.disabled' for s in sections('wireless','wifi-iface') if get(s+'.device') == radio.split('.')[1]]
             state.update(active=True, radio=radio, previous={k:get(k) for k in keys},
@@ -120,6 +146,13 @@ def reconcile(on, live=True):
         lists('firewall.n1_usb.device',['dpncm'])
         section('firewall.n1_uplink','forwarding',src='carplay',dest='lan')
         section('firewall.n1_nat','nat',name='N1 hotspot uplink',src='lan',src_ip='100.96.0.0/24',family='ipv4',target='MASQUERADE')
+        for path, (kind, options) in iphone_sections.items():
+            put(path, kind)
+            for k, v in options.items():
+                if isinstance(v, list):
+                    lists(path+'.'+k, v)
+                else:
+                    put(path+'.'+k, v)
         put('dashplay.main.wifi','n1_car')
         if get('dashplay.main.viewer_port') == '443':
             for s in sections('uhttpd','uhttpd'):
@@ -148,6 +181,8 @@ def reconcile(on, live=True):
                 values = (get(k) or '').splitlines()
                 lists(k,[v for v in values if v not in {'/'+n+'/' for n in names if n}])
         for k in owned: remove(k)
+        if state.get('iphone_usb_owned'):
+            for k in iphone_sections: remove(k)
         for k,v in state['previous'].items():
             if get(k.rsplit('.',1)[0]) is not None: put(k,v)
     else:
@@ -162,6 +197,11 @@ def reconcile(on, live=True):
     for pkg in sorted(dirty):
         run('uci','commit',pkg)
     if live:
+        if not on:
+            run('/etc/init.d/n1-iphone-usb', 'stop')
+        elif not Path('/run/dashplay/usb-tether').exists():
+            if run('/etc/init.d/n1-iphone-usb', 'start', check=False).returncode:
+                run('logger', '-t', 'n1-iphone-usb', 'USB tether driver unavailable', check=False)
         if {'network','wireless'} & pending: run('ubus','call','network','reload')
         for pkg,svc,action in [('firewall','firewall','reload'),('dhcp','dnsmasq','reload'),('uhttpd','uhttpd','restart')]:
             if pkg in pending: run('/etc/init.d/'+svc,action)

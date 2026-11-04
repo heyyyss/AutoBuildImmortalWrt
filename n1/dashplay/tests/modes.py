@@ -33,6 +33,11 @@ for _ in range(2):
     assert u('get','wireless.home.disabled')=='1' and u('get','wireless.n1_car.network')=='carplay'
     assert u('get','firewall.n1_usb.device')=='dpncm' and u('get','firewall.n1_usb.forward')=='REJECT'
     assert u('get','firewall.n1_uplink.src')=='carplay' and u('get','firewall.n1_nat.src_ip')=='100.96.0.0/24'
+    assert u('get','network.iphone_usb.device')=='iphonewan0' and u('get','network.iphone_usb.proto')=='dhcp'
+    assert u('get','network.iphone_usb.metric')=='70'
+    assert u('get','firewall.n1_iphone_wan.network')=='iphone_usb' and u('get','firewall.n1_iphone_wan.masq')=='1'
+    assert u('get','firewall.n1_car_to_iphone.src')=='carplay' and u('get','firewall.n1_car_to_iphone.dest')=='iphonewan'
+    assert u('get','firewall.n1_iphone_wan.input')=='REJECT' and u('get','firewall.n1_iphone_wan.forward')=='REJECT'
     for http in mod.sections('uhttpd','uhttpd'):
         assert not any(v.endswith(':443') for v in (mod.get(http+'.listen_https') or '').splitlines())
     shutil.copyfile(Path(os.environ["N1_UCI_CONFIG"],"firewall"),Path(sys.argv[2])/"firewall-on")
@@ -48,4 +53,25 @@ for _ in range(2):
     assert before==baseline(), 'off did not restore original UCI'
     apply(False)
     assert before==baseline()
-print('Two router → car → router cycles: Ethernet/DHCP/RA unchanged, AP/USB/443 removed, previous Wi-Fi and LuCI listeners restored.')
+u('set', 'network.iphone_usb=interface')
+u('set', 'network.iphone_usb.device=other0')
+u('commit', 'network')
+try:
+    apply(True)
+except RuntimeError as error:
+    assert 'network.iphone_usb' in str(error)
+else:
+    raise AssertionError('overwrote a foreign USB interface')
+assert u('get', 'network.iphone_usb.device')=='other0'
+u('delete', 'network.iphone_usb')
+u('commit', 'network')
+# Upgrade a build #3 that already has the hand-installed tether settings.
+apply(True)
+st=json.loads(mod.STATE.read_text())
+del st['iphone_usb_owned']
+mod.save(st)
+apply(True)
+assert json.loads(mod.STATE.read_text())['iphone_usb_owned']
+apply(False)
+assert before==baseline()
+print('Router/car cycles, USB tether migration and collision handling passed; prior Wi-Fi, Ethernet, LuCI and firewall restored.')

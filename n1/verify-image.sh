@@ -120,6 +120,10 @@ printf 'DHCP client / no DHCP server / no IPv6 RA: OK\nFirst-boot script idempot
 
 if [[ ${N1_PROFILE:-router} == dashplay ]]; then
     here=$(cd "$(dirname "$0")" && pwd)
+    python3 "$here/dashplay/tests/iphone-usb.py" | tee -a "$report"
+    test -x "$work/root/etc/rc.d/S19n1-iphone-usb"
+    test -x "$work/root/usr/libexec/n1-iphone-usb-watch.py"
+    test -f "$work/root/etc/hotplug.d/net/18-n1-iphone-usb"
     python3 "$here/dashplay/tests/modes.py" "$work/root/usr/sbin/n1-car-mode" "$work" | tee -a "$report"
     unshare -n nft --check -f <(printf 'table inet fw4 {\n'; cat "$work/root/usr/share/n1-car/viewer.nft"; printf '}\n')
     bash "$here/dashplay/tests/upgrade.sh" "$work/root" "$work" "$output_dir/n1-apks" | tee -a "$report"

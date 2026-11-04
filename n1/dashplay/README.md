@@ -2,6 +2,8 @@
 
 基于 `n1-25-dhcp` 的 25.12.1，保留 OpenClash、Lucky、DDNS-Go、WireGuard、Tailscale、LuCI/SSH 等旁路由组件。此配置不预装 PassWall2 和 Docker。专用镜像固定 ophub 6.12.115、N1 DTB 和 2048 MiB 根分区，仅适合实体 N1；先用另一只 U 盘验证。
 
+[完整构建 #3](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41808136465) 对应运行时代码 `0eda0cf`。完整产物包含 USB 镜像、成品验证报告、校验和，以及 Core 2026.11.02-r2、LuCI 和中文包 0.261102.35991-r3。新镜像尚未上 N1 实测。
+
 ## 开关和首次使用
 
 在 **服务 → DashPlay → Network（网络）→ 车载模式** 保存并应用，或通过 SSH 执行：

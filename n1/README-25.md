@@ -1,5 +1,7 @@
 # N1 / ImmortalWrt 25.12 / DHCP
 
+**使用 DashPlay 分支时**，请先读[车载开关、固件与独立 APK 升级说明](dashplay/README.md)。下面保留的是普通 `n1-25-dhcp` 基线的构建记录。
+
 分支：`n1-25-dhcp`。以 `origin/heyyyss-patch-1` 的 `f704335` 为基础，参考之前的 x86 25.12.1，新增独立的 N1 25 构建入口。
 
 2026-11-03，[构建 #2 已成功](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41656072434)，对应固件代码 `503fa33`。ARM64 rootfs、N1 打包和最终镜像校验均通过。下载 Artifacts 中的 `immortalwrt-25.12.1-phicomm-n1-dhcp-2`（约 326 MB，保留 30 天）；尚未进行 N1 实机启动测试。

@@ -53,16 +53,16 @@ for mod in hci_uart btbcm bluetooth rfcomm; do modinfo "$mod" >/dev/null; done
 test -s /lib/firmware/brcm/BCM4345C0.hcd
 SH
 provider=carplay-ophub-bluetooth-6.12.115-r3.apk
-target "$apkpath" mkpkg -I name:carplay-ophub-bluetooth -I version:6.12.115-r3 \
+bash "$here/host-apk.sh" "$root$work" mkpkg -I name:carplay-ophub-bluetooth -I version:6.12.115-r3 \
     -I arch:aarch64_generic -I description:'Verified preinstalled ophub Bluetooth modules' \
     -I license:GPL-2.0-only -I depends:kernel -I provides:kmod-bluetooth=6.12.115-r1 \
-    -s "pre-install:$work/pre" -F "$work/data" -o "$work/$provider"
+    -s pre-install:/stage/pre -F /stage/data -o "/stage/$provider"
 cp "$root$work/$provider" "$out/n1-apks/"
 cp "$out"/n1-bluez/*.apk "$root$work/"
 args=()
 for p in "$root$work"/*.apk; do args+=("$work/${p##*/}"); done
 apk_offline() { target "$apkpath" --no-network --repositories-file /dev/null "$@"; }
-apk_offline --allow-untrusted --no-scripts add "${args[@]}"
+apk_offline add --allow-untrusted --no-scripts "${args[@]}"
 apk_offline info -e bluez-daemon bluez-utils bluez-utils-extra carplay-ophub-bluetooth
 if apk_offline info --installed | grep -q '^kmod-bluetooth-'; then echo 'Unexpected armsr Bluetooth modules' >&2; exit 1; fi
 # BlueZ is started at 19 only for car mode; dbus remains a shared system service.

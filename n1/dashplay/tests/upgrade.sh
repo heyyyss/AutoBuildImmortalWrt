@@ -25,10 +25,10 @@ config=$(sha256sum "$r/etc/config/dashplay")
 cp "$apks"/*.apk "$r/tmp/pkgtest/"
 path=$(find "$r" -type f -name apk -print -quit); apk() { chroot "$r" /tmp/n1-qemu "${path#"$r"}" "$@"; }
 args=()
-for f in "$r"/tmp/pkgtest/*.apk; do args+=("/tmp/pkgtest/${f##*/}"); done
-apk mkndx --allow-untrusted -o /tmp/pkgtest/packages.adb "${args[@]}"
+for f in "$r"/tmp/pkgtest/*.apk; do args+=("/stage/${f##*/}"); done
+bash "$(dirname "$0")/../host-apk.sh" "$r/tmp/pkgtest" mkndx --allow-untrusted -o /stage/packages.adb "${args[@]}"
 for p in dashplay luci-app-dashplay luci-i18n-dashplay-zh-cn; do
-    apk --no-network --repositories-file /dev/null -X /tmp/pkgtest/packages.adb --allow-untrusted --no-scripts fix --reinstall "$p"
+    apk --no-network --repositories-file /dev/null -X /tmp/pkgtest/packages.adb --allow-untrusted fix --no-scripts --reinstall "$p"
     for f in opt/dashplay/state/n1-probe opt/dashplay/identity/n1-probe etc/bluetooth/keys/n1-probe; do
         grep -qx offline-upgrade-fixture "$r/$f"
     done

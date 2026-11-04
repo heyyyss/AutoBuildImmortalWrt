@@ -19,7 +19,7 @@ def generate(root, kernel):
         inputs = entries + [root/'etc/modules.conf', modules/'modules.dep.bin']
         fingerprint = b''.join((hashlib.sha256(p.read_bytes()).hexdigest()+'  /'+str(p.relative_to(root))+'\n').encode() for p in inputs)
         (base/(key+'.sha256')).write_text(hashlib.sha256(fingerprint).hexdigest()+'\n')
-        commands, batch = [], []
+        commands, batch, absent = [], [], []
         def flush():
             if batch:
                 commands.append(['-a',*batch])
@@ -32,6 +32,7 @@ def generate(root, kernel):
                 r=subprocess.run(['modprobe','-d',str(root),'-S',kernel,'-n',*args], capture_output=True)
                 if r.returncode:
                     if (modules/(args[0]+'.ko')).exists(): raise ValueError('index missing '+args[0])
+                    absent.append(args[0])
                     continue
                 if len(args)>1:
                     flush()
@@ -40,6 +41,7 @@ def generate(root, kernel):
                     batch.append(args[0])
         flush()
         assert commands
+        (base/(key+'.absent')).write_text(''.join(name+'\n' for name in sorted(set(absent))))
         (base/(key+'.sh')).write_text('#!/bin/sh\nset -e\n' + ''.join('/sbin/modprobe "$@" '+shlex.join(c)+'\n' for c in commands))
     wrapper=(Path(__file__).with_name('fast-loader.sh')).read_text().replace('@KERNEL@',kernel)
     # Replace the file, never write through a packaged symlink.

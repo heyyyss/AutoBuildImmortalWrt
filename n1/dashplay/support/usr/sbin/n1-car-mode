@@ -13,7 +13,11 @@ import tempfile
 STATE = Path('/etc/n1-car/mode.json')
 INIT = '/etc/init.d/dashplay'
 def run(*args, check=True):
-    return subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if check and result.returncode:
+        # UCI args may contain the generated Wi-Fi key; do not log them on failure.
+        raise RuntimeError(f'{args[0]} failed ({result.returncode}): {result.stderr.strip()}')
+    return result
 
 def get(key):
     result = run('uci', '-q', '-d', '\n', 'get', key, check=False)
@@ -64,6 +68,11 @@ dirty = set()
 
 def reconcile(on, live=True):
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
+    if state.get('active') and get('wireless.n1_car') == 'wifi-iface':
+        ssid,key = get('wireless.n1_car.ssid'),get('wireless.n1_car.key')
+        if ssid and key and 8 <= len(key) <= 63:
+            state.update(ssid=ssid,key=key)
+            save(state)
     if on:
         radios = sections('wireless', 'wifi-device')
         if not radios and live:

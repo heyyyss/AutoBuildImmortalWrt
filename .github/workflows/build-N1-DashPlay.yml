@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: n1-dashplay-${{ github.ref }}
+  group: n1-dashplay-${{ github.sha }}-${{ inputs.packages_only || false }}
   cancel-in-progress: true
 
 env:
@@ -63,6 +63,7 @@ jobs:
             wget gawk pv zip rename uuid-runtime qemu-user-static nftables
           bash -n n1/build25.sh n1/packages25.sh n1/verify-image.sh
           sh -n n1/files/etc/uci-defaults/zz-n1-dhcp
+          python3 n1/dashplay/tests/fast-loader.py n1/dashplay/fast-loader.sh
 
       - name: Build ImmortalWrt 25 ARM64 rootfs with selected APKs
         run: |

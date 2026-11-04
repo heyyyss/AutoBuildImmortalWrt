@@ -14,9 +14,9 @@ echo "6b99656d72278c91851e0037f9c109f7ab0492f2115586725bdb8e538992b450  $compat/
 chmod 755 "$compat/btmgmt"
 chown -R 0:0 "$work/support"
 apkhost=$PWD/staging_dir/host/bin/apk
-"$apkhost" mkpkg -I name:n1-car-support -I version:1.0-r1 -I arch:aarch64_generic \
+"$apkhost" mkpkg -I name:n1-car-support -I version:1.0-r2 -I arch:aarch64_generic \
     -I description:'Phicomm N1 car mode, Bluetooth tool and TLS watcher' \
-    -I license:GPL-2.0-or-later -I depends:'python3' -F "$work/support" -o "$out/n1-car-support-1.0-r1.apk"
+    -I license:GPL-2.0-or-later -I depends:'python3' -F "$work/support" -o "$out/n1-car-support-1.0-r2.apk"
 for file in "$out"/*.apk; do
     name=${file##*/}
     # apk fetches local index entries as NAME-VERSION.apk (upstream labels the JRE's arch in its release asset).

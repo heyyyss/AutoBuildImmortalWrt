@@ -33,5 +33,26 @@ start = (feed / ui).read_text()
 a = start.index("\t\tuci.sections('wireless'")
 end = start.index("o.value('external',", a)
 (feed / ui).write_text(start[:a] + start[start.index('\n', end):])
+# Present only the update mechanism supported by this edition.
+js = (feed/ui).read_text()
+a = js.index('\t\t// Online update (update.py)')
+b = js.index("\t\to = s.taboption('debug'", a)
+js = js[:a] + """\t\to = s.taboption('update', form.DummyValue, '_n1_apks', _('独立 APK 更新'));
+\t\to.cfgvalue = function() { return _('从本分支的构建产物安装新版 DashPlay 核心或 LuCI 插件。只更新改过的包，无需重刷固件。'); };
+
+""" + js[b:]
+a = js.index("\t\t\tvar box = node.querySelector('#dashplay-update')")
+b = js.index('\n\t\t});', a)
+js = js[:a] + '\t\t\treturn updateWarning().then(function() { return node; });' + js[b:]
+(feed/ui).write_text(js)
+edit(feed, ui, "o.placeholder = '18443';", """o.placeholder = '443';
+        o.validate = function(section, value) {
+            if (!value) return true;
+            var n = Number(value);
+            if (!/^\\d+$/.test(value) || !(n === 443 || (n >= 1024 && n <= 65535 && n !== 7000)))
+                return _('请选择 443 或 1024–65535 之间的端口，7000 除外。');
+            var p = this.map.lookupOption('settings_port', section)[0];
+            return Number(p.formvalue(section) || 18080) !== n || _('观看端口不能和设置页端口相同。');
+        };""")
 edit(feed, 'luci-app-dashplay/Makefile', 'include $(TOPDIR)/feeds/luci/luci.mk',
      'PKG_VERSION:=0.261102.35991\nPKG_RELEASE:=' + sys.argv[3] + '\nPKG_PO_VERSION:=0.261102.35991-r' + sys.argv[3] + '\ninclude $(TOPDIR)/feeds/luci/luci.mk')

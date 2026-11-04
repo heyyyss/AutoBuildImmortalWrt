@@ -10,5 +10,10 @@ esac
 sum=$( { for f in "$folder"/*; do [ ! -f "$f" ] || sha256sum "$f"; done
     sha256sum /etc/modules.conf /lib/modules/@KERNEL@/modules.dep.bin; } | sha256sum)
 read -r expected < "$base/$key.sha256" && [ "${sum%% *}" = "$expected" ] || fallback "$@"
+[ -r "$base/$key.absent" ] || fallback "$@"
+while IFS= read -r name; do
+    # A newly installed flat module may exist before depmod refreshes the index.
+    [ ! -e "/lib/modules/@KERNEL@/$name.ko" ] || fallback "$@"
+done < "$base/$key.absent"
 if /bin/sh "$base/$key.sh"; then exit 0; fi
 fallback "$@"

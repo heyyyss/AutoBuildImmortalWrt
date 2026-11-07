@@ -8,7 +8,8 @@ compat="$work/support/usr/libexec/carplay-compat"
 mkdir -p "$compat"
 ipk=bluez-utils-extra_5.72-r2_aarch64_generic.ipk
 curl -fsSL --retry 3 "https://downloads.openwrt.org/releases/24.10.4/packages/aarch64_generic/packages/$ipk" -o "$work/$ipk"
-echo "25466107142ded571eb2e90a03b157768270e1f12ea014f943f7049a2e0bac26  $work/$ipk" | sha256sum -c -
+# Official Packages index checked 2026-11-07; the extracted btmgmt hash is unchanged.
+echo "e33a4b1e446c60f9340c02f784ef75c657c8576ce24ed5bd6191246657214f98  $work/$ipk" | sha256sum -c -
 tar -xzOf "$work/$ipk" ./data.tar.gz | tar -xzOf - ./usr/bin/btmgmt > "$compat/btmgmt"
 echo "6b99656d72278c91851e0037f9c109f7ab0492f2115586725bdb8e538992b450  $compat/btmgmt" | sha256sum -c -
 chmod 755 "$compat/btmgmt"

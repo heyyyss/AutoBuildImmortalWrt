@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PYTHONDONTWRITEBYTECODE: '1'
   LUCI_VERSION: '25.12.1'
   N1_KERNEL: '6.12.115'
   N1_PROFILE: dashplay
@@ -32,6 +33,12 @@ jobs:
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v6
+      - name: Check connection and browser policies
+        run: |
+          python3 n1/dashplay/tests/connection-policy.py
+          node n1/dashplay/tests/display-gate.cjs
+          node n1/dashplay/tests/ipad-audio.cjs
+          node --check n1/dashplay/web/n1-ipad-audio.js
       - name: Build native HTTPS Core and LuCI APKs
         run: bash n1/dashplay/build-apks.sh bin/n1-apks
       - name: Hash update set

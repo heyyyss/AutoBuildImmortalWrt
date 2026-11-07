@@ -1,5 +1,6 @@
 """Prepare a pinned OpenWrt feed, leaving the original checkout untouched."""
 import runpy
+import shutil
 import sys
 from pathlib import Path
 
@@ -7,15 +8,27 @@ here = Path(__file__).resolve().parent
 edit = runpy.run_path(str(here / 'patch-bundle.py'))['edit']
 feed = Path(sys.argv[1])
 (feed / 'dashplay/patch-bundle.py').write_bytes((here / 'patch-bundle.py').read_bytes())
+(feed / 'dashplay/patch-viewer.py').write_bytes((here / 'patch-viewer.py').read_bytes())
+shutil.copytree(here / 'web', feed / 'dashplay/web')
 edit(feed, 'dashplay/Makefile', 'PKG_RELEASE:=1', 'PKG_RELEASE:=' + sys.argv[2])
 edit(feed, 'dashplay/Makefile', 'tar -xf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR)/bundle',
      'tar -xf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR)/bundle\n\tpython3 $(CURDIR)/patch-bundle.py $(PKG_BUILD_DIR)/bundle')
-edit(feed, 'dashplay/Makefile', 'EXTRA_DEPENDS:=python3', 'EXTRA_DEPENDS:=n1-car-support (>=1), python3')
+edit(feed, 'dashplay/Makefile', 'EXTRA_DEPENDS:=python3', 'EXTRA_DEPENDS:=n1-car-support (>=1.0-r4), python3')
 edit(feed, 'dashplay/files/dashplay.init', 'START=99', 'START=21')
 edit(feed, 'dashplay/files/dashplay.init', 'config_load dashplay',
      'if [ "$(uci -q get dashplay.main.enabled)" != 1 ]; then /usr/sbin/n1-car-mode apply || return 1; fi\n\tconfig_load dashplay')
 edit(feed, 'dashplay/files/dashplay.init', 'procd_open_instance\n',
      'procd_open_instance\n\tprocd_set_param env PATH=/usr/libexec/carplay-compat:/usr/sbin:/usr/bin:/sbin:/bin\n')
+# The transport policy shares DashPlay's lifecycle, including car-mode off.
+edit(feed, 'dashplay/files/dashplay.init', '\tprocd_close_instance\n', '''	procd_close_instance
+	procd_open_instance connection_policy
+	procd_set_param command /usr/bin/python3 /usr/libexec/n1-connection-policy.py
+	procd_set_param respawn 3600 5 0
+	procd_set_param term_timeout 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+''')
 # procd supervises this async wait, so a slow radio cannot block the boot sequence.
 edit(feed, 'dashplay/files/dashplay.init', 'command /usr/bin/python3 /opt/dashplay/supervisor_openwrt.py --root /opt/dashplay',
      'command /usr/libexec/n1-dashplay-start')

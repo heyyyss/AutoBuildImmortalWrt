@@ -1,0 +1,15 @@
+{
+  "upstream": {
+    "playport/web/dist/assets/main-bA1a8eYW.js": "a09671d12f3fac46fe5d655c2333fa7814a30105a731208db9b5d0d2e4fb83dc",
+    "playport/web/dist/assets/index-CS3SioKU.js": "9944042bbf8ddbf7c72bf334f7d96fd6e2f25fceccbb5fcdcb6ecf51d570482b",
+    "iphone-usb-bridge.py": "7e17ce8371bdcf8b108397fc78105e2f9c8dea074aa25990a405b10225f018e9",
+    "playport/web/dist/index.html": "3417d49d9ae69c9550e52764b27f7dfd64d6ee5f6a9a02f616dad56383e0a4d5"
+  },
+  "patched": {
+    "playport/web/dist/assets/main-n1-reconnect-20261107.js": "3494c3491317f0ec8e82cfc1e859e3813018bf75a7c924d4082795d2285d78e6",
+    "playport/web/dist/assets/index-n1-reconnect-20261107.js": "33849a1a7a5e0f00d101bdedd7b0176d501834983609a48c09c093acacdbad5b",
+    "playport/web/dist/index.html": "c71e2e90de97e68e56d21c04fdfce39350b01e6e876934cfa19cf69f1036491e",
+    "playport/web/dist/ipad-audio-test.html": "edac1b7d2620a50b7561473ec665abe2f03cdce26a77ceea968498ae7f7c088d",
+    "playport/web/dist/n1-ipad-audio.js": "ac4b2eb4f63deee76ec76b9b312d0327a7316530161a225fe2e0e0418fd96051"
+  }
+}

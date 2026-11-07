@@ -1,4 +1,5 @@
 """Apply the N1 viewer changes to the release bundle before building its APK."""
+import runpy
 import sys
 from pathlib import Path
 
@@ -23,3 +24,4 @@ if __name__ == '__main__':
          'def launch(root, openwrt=None, version=None):\n    raise RuntimeError("N1: install the matching DashPlay APK from your firmware build.")')
     edit(root, 'update.py', 'def install(root, openwrt=None, key=KEY, version=None):',
          'def install(root, openwrt=None, key=KEY, version=None):\n    raise RuntimeError("N1: install the matching DashPlay APK from your firmware build.")')
+    runpy.run_path(str(Path(__file__).with_name('patch-viewer.py')))['patch'](root)

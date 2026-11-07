@@ -2,6 +2,7 @@
 import http.server
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import ssl
@@ -27,7 +28,8 @@ class IdleReloadTests(unittest.TestCase):
                     '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '365',
                     '-subj', '/CN=Isolated Idle Reload CA',
                     '-addext', 'basicConstraints=critical,CA:TRUE',
-                    '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
+                    '-addext', 'keyUsage=critical,keyCertSign,cRLSign',
+                    '-addext', 'subjectKeyIdentifier=hash')
         for key in ('first', 'rotated'):
             cls.openssl('req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
                         '-nodes', '-keyout', key + '.key', '-out', key + '.csr',
@@ -40,11 +42,22 @@ class IdleReloadTests(unittest.TestCase):
             ('older', 'first', 10, 5, 'n1-test.example.org'),
         ):
             (cls.root / 'extensions').write_text('subjectAltName=DNS:' + host +
-                '\nbasicConstraints=critical,CA:FALSE\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature\n')
-            validity = (['-not_before', '20000101000000Z', '-not_after', '20010101000000Z']
-                        if days < 0 else ['-days', str(days)])
+                '\nbasicConstraints=critical,CA:FALSE\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature'
+                '\nsubjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n')
+            if days < 0:
+                # `openssl ca` supports explicit dates on both Ubuntu 24.04 and macOS.
+                (cls.root / 'ca-index').touch()
+                (cls.root / 'ca-serial').write_text('04\n')
+                (cls.root / 'ca.cnf').write_text(
+                    '[ca]\ndefault_ca=test\n[test]\ndatabase=ca-index\nserial=ca-serial\n'
+                    'new_certs_dir=.\ncertificate=ca.pem\nprivate_key=ca.key\n'
+                    'default_md=sha256\npolicy=names\n[names]\ncommonName=supplied\n')
+                cls.openssl('ca', '-batch', '-config', 'ca.cnf', '-in', key + '.csr',
+                            '-startdate', '20000101000000Z', '-enddate', '20010101000000Z',
+                            '-extfile', 'extensions', '-out', name + '.pem', '-notext')
+                continue
             cls.openssl('x509', '-req', '-in', key + '.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
-                        '-set_serial', str(serial), *validity, '-extfile', 'extensions',
+                        '-set_serial', str(serial), '-days', str(days), '-extfile', 'extensions',
                         '-out', name + '.pem')
 
     @classmethod
@@ -66,7 +79,7 @@ class IdleReloadTests(unittest.TestCase):
         (self.state / 'receiver/phone-presence.json').write_text('{}')
         self.config = {'state': str(self.state), 'domain': 'n1-test.example.org',
                        'ca_file': str(self.root / 'ca.pem'), 'wired_status': str(self.wired),
-                       'viewer_port': 65367, 'dashplay_root': '/opt/dashplay',
+                       'viewer_port': 443, 'dashplay_root': os.environ.get('N1_TEST_DASHPLAY_ROOT', '/opt/dashplay'),
                        'service': '/etc/init.d/dashplay', 'idle_seconds': 120}
         self.candidate('old', 'first')
         reload.rebuild(self.config)

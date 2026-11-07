@@ -120,9 +120,21 @@ printf 'DHCP client / no DHCP server / no IPv6 RA: OK\nFirst-boot script idempot
 
 if [[ ${N1_PROFILE:-router} == dashplay ]]; then
     here=$(cd "$(dirname "$0")" && pwd)
-    python3 "$here/dashplay/tests/iphone-usb.py" | tee -a "$report"
+    python3 "$here/dashplay/tests/connection-policy.py" 2>&1 | tee -a "$report"
+    N1_TEST_DASHPLAY_ROOT="$work/root/opt/dashplay" python3 "$here/dashplay/tests/tls.py" \
+        "$work/root/usr/libexec/n1-tls-idle.py" 2>&1 | tee -a "$report"
     test -x "$work/root/etc/rc.d/S19n1-iphone-usb"
-    test -x "$work/root/usr/libexec/n1-iphone-usb-watch.py"
+    test -x "$work/root/usr/libexec/n1-connection-policy.py"
+    cmp "$here/dashplay/support/usr/libexec/n1-connection-policy.py" "$work/root/usr/libexec/n1-connection-policy.py"
+    grep -q 'procd_open_instance connection_policy' "$work/root/etc/init.d/dashplay"
+    ! grep -q 'n1-iphone-usb-watch.py' "$work/root/usr/libexec/n1-iphone-usb-name"
+    python3 "$here/dashplay/patch-viewer.py" --verify "$work/root/opt/dashplay" | tee -a "$report"
+    python3 "$here/dashplay/tests/viewer.py" --installed "$work/root/opt/dashplay" 2>&1 | tee -a "$report"
+    node "$here/dashplay/tests/display-gate.cjs" | tee -a "$report"
+    node "$here/dashplay/tests/ipad-audio.cjs" | tee -a "$report"
+    for script in main-n1-reconnect-20261107.js index-n1-reconnect-20261107.js; do
+        node --check "$work/root/opt/dashplay/playport/web/dist/assets/$script"
+    done
     test -f "$work/root/etc/hotplug.d/net/18-n1-iphone-usb"
     python3 "$here/dashplay/tests/modes.py" "$work/root/usr/sbin/n1-car-mode" "$work" | tee -a "$report"
     unshare -n nft --check -f <(printf 'table inet fw4 {\n'; cat "$work/root/usr/share/n1-car/viewer.nft"; printf '}\n')

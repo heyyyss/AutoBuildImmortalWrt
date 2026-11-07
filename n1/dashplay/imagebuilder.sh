@@ -14,7 +14,7 @@ echo "6b99656d72278c91851e0037f9c109f7ab0492f2115586725bdb8e538992b450  $compat/
 chmod 755 "$compat/btmgmt"
 chown -R 0:0 "$work/support"
 apkhost=$PWD/staging_dir/host/bin/apk
-support_version=1.0-r3
+support_version=1.0-r4
 "$apkhost" mkpkg -I name:n1-car-support -I version:"$support_version" -I arch:aarch64_generic \
     -I description:'Phicomm N1 car mode, iPhone USB tethering, Bluetooth tool and TLS watcher' \
     -I license:GPL-2.0-or-later -I depends:'python3' -F "$work/support" -o "$out/n1-car-support-$support_version.apk"

@@ -8,8 +8,8 @@ HERE = Path(__file__).resolve().parent
 WEB = Path('playport/web/dist')
 MAIN = 'assets/main-bA1a8eYW.js'
 LOADER = 'assets/index-CS3SioKU.js'
-NEW_MAIN = 'main-n1-reconnect-20261107.js'
-NEW_LOADER = 'index-n1-reconnect-20261107.js'
+NEW_MAIN = 'main-n1-reconnect-20261107-r2.js'
+NEW_LOADER = 'index-n1-reconnect-20261107-r2.js'
 
 
 def replace_once(source, old, new):
@@ -29,6 +29,9 @@ def render(root):
     dist = root / WEB
     source = (dist / MAIN).read_text()
     for old, new in [
+        # The main module imports timing exports from its loader. Leaving this
+        # reference on the old loader also starts the old player as a side effect.
+        ('from"./' + Path(LOADER).name + '";', 'from"./' + NEW_LOADER + '";'),
         ('function cr(e){', 'function cr(e){n1DisplayGate.session(e);'),
         ('async function Mr(e,t){if(Qt||!w)return!1;Qt=!0,',
          'async function Mr(e,t){if(Qt||!w)return!1;let n1Ticket=!t.defer&&(!k||!bt(k,e))?n1DisplayGate.begin(T):null;Qt=!0,'),
@@ -77,6 +80,12 @@ def verify(root):
     # The official USB bridge remains unchanged; only the procd policy selects recovery.
     check_hashes(root, {k: v for k, v in hashes['upstream'].items() if k != str(WEB / 'index.html')})
     check_hashes(root, hashes['patched'])
+    main = (root / WEB / 'assets' / NEW_MAIN).read_text()
+    loader = (root / WEB / 'assets' / NEW_LOADER).read_text()
+    if ('from"./' + NEW_LOADER + '";') not in main or Path(LOADER).name in main:
+        raise ValueError('Viewer main must import only the renamed loader')
+    if ('import(`./' + NEW_MAIN + '`)') not in loader or Path(MAIN).name in loader:
+        raise ValueError('Viewer loader must initialize only the renamed main')
     if (root / 'n1_cable_fallback.py').exists():
         raise ValueError('Obsolete cable fallback must not be packaged')
     print('Pinned viewer hashes, display reconnect gate, independent iPad page and official USB bridge: OK')

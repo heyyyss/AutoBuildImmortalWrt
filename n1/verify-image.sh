@@ -132,7 +132,7 @@ if [[ ${N1_PROFILE:-router} == dashplay ]]; then
     python3 "$here/dashplay/tests/viewer.py" --installed "$work/root/opt/dashplay" 2>&1 | tee -a "$report"
     node "$here/dashplay/tests/display-gate.cjs" | tee -a "$report"
     node "$here/dashplay/tests/ipad-audio.cjs" | tee -a "$report"
-    for script in main-n1-reconnect-20261107.js index-n1-reconnect-20261107.js; do
+    for script in main-n1-reconnect-20261107-r2.js index-n1-reconnect-20261107-r2.js; do
         node --check "$work/root/opt/dashplay/playport/web/dist/assets/$script"
     done
     test -f "$work/root/etc/hotplug.d/net/18-n1-iphone-usb"

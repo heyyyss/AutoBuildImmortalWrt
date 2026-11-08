@@ -2,6 +2,7 @@
 import hashlib
 from pathlib import Path
 import runpy
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -50,6 +51,11 @@ class ViewerPatchTests(unittest.TestCase):
                 patcher['patch'](self.root)
             self.assertEqual(before, self.snapshot())
             path.write_bytes(original)
+
+    def test_player_initializes_once(self):
+        patcher['patch'](self.root)
+        subprocess.run(['node', str(HERE / 'tests/viewer-module-load.mjs'),
+                        str(self.root / patcher['WEB'])], check=True)
 
     def test_rejects_double_patch(self):
         patcher['patch'](self.root)

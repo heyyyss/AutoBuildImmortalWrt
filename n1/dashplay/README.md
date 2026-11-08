@@ -2,7 +2,7 @@
 
 基于 `n1-25-dhcp` 的 25.12.1，保留 OpenClash、Lucky、DDNS-Go、WireGuard、Tailscale、LuCI/SSH 等旁路由组件。此配置不预装 PassWall2 和 Docker。专用镜像固定 ophub 6.12.115、N1 DTB 和 2048 MiB 根分区，仅适合实体 N1；先用另一只 U 盘验证。
 
-本版以 [完整构建 #4](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41848746264) 的 `f189f5a` 为底座，固定 DashPlay 2026.11.02、Core r3、n1-car-support 1.0-r4；LuCI 和中文包仍为 0.261102.35991-r3。新增统一连接恢复、显示参数重连保护和独立 iPad 试听页。完整产物包含 USB 镜像、成品验证报告、校验和及独立 APK。
+本版以 [完整构建 #4](https://github.com/heyyyss/AutoBuildImmortalWrt/actions/runs/41848746264) 的 `f189f5a` 为底座，固定 DashPlay 2026.11.02、Core r4、n1-car-support 1.0-r4；LuCI 和中文包仍为 0.261102.35991-r3。新增统一连接恢复、显示参数重连保护和独立 iPad 试听页。完整产物包含 USB 镜像、成品验证报告、校验和及独立 APK。
 
 实机来源是 #4 U 盘上的对应修补：连接切换及 iPad 声音已有桌面验证，最终策略整机重启、脱离家庭网线后的 USB 外网、显示参数反复切换和 Tesla 实车仍需验收。新的完整镜像也需在另一只 U 盘验证。
 
@@ -28,11 +28,13 @@ n1-car-mode on
 
 策略随 DashPlay 由 procd 管理，每 2 秒读取会话，连续断开 4 秒后可请求有线接管。无线恢复先给原接收端 20 秒自动邀请机会，握手有进展时继续等待，避免补偿请求把刚建立的会话关掉。显示设置引起的重连最多等待 30 秒，物理断线可跳过该等待；每次有线/无线握手分别留 30/35 秒，失败后可尝试另一条，单一路径失败按 10/20/40/60 秒退避。新的物理连接恢复可提前结束退避。无线候选需确认该手机已关联热点，蓝牙邀请和加入热点仍由原接收端负责。只有一个已知手机时自动选择，多个手机保留手动选择，显式禁用有线时不覆盖设置。此为配置等待时间，实际出画还取决于 iPhone 协议握手。
 
-2026-11-07 对应策略逻辑已通过 17 项本机状态及 API 防抢占测试，并部署到 #4 U 盘测试；原 GitHub #4 镜像内容未改变。升级此版需同时更新 Core r3 与支持包 r4；只更新 Core 会因依赖不满足而拒绝安装。
+2026-11-07 对应策略逻辑已通过 17 项本机状态及 API 防抢占测试，并部署到 #4 U 盘测试；原 GitHub #4 镜像内容未改变。升级此版需同时更新 Core r4 与支持包 r4；只更新 Core 会因依赖不满足而拒绝安装。
 
 ## 独立升级和二次开发
 
 ### 观看页与 iPad 试听
+
+Core r4 修复此前重连补丁中 main 仍导入旧 loader 的遗漏，防止一页同时启动新旧两个播放器。新 loader/main 使用 r2 文件名，避免复用旧脚本缓存。请使用包含 Core r4 的新构建；#6 的 Core r3 产物不含本修复。`tests/viewer.py` 用真实 bootstrap 和 main import 验证仅一次初始化；旧模块引用会明确失败。实车连续播放另行验收。
 
 普通观看页和 `/ipad-audio-test.html` 均包含显示重连保护。提交显示设置前挂起新的设置请求，忽略旧的 active hello，等 inactive → active 稳定 1.2 秒后释放，最多 30 秒；失败或 deferred 响应立即取消。自动尺寸变化等待 2.5 秒，解锁后重新读取最新尺寸。
 
@@ -42,11 +44,11 @@ n1-car-mode on
 
 ### 安装配套 APK
 
-从 #4 更新至本版时，必须把 `dashplay-2026.11.02-r3.apk` 与 `n1-car-support-1.0-r4.apk` 放在同一条安装命令中，避免核心依赖缺失。支持包当前在完整镜像任务生成；只取 `n1-dashplay-update-apks-*` 中的 Core/LuCI 集合不够，使用完整固件产物内的 `n1-apks/`。
+从 #4 更新至本版时，必须把 `dashplay-2026.11.02-r4.apk` 与 `n1-car-support-1.0-r4.apk` 放在同一条安装命令中，避免核心依赖缺失。支持包当前在完整镜像任务生成；只取 `n1-dashplay-update-apks-*` 中的 Core/LuCI 集合不够，使用完整固件产物内的 `n1-apks/`。
 
 ```sh
 n1-car-mode off
-apk add --allow-untrusted ./n1-car-support-1.0-r4.apk ./dashplay-2026.11.02-r3.apk
+apk add --allow-untrusted ./n1-car-support-1.0-r4.apk ./dashplay-2026.11.02-r4.apk
 n1-car-mode on
 ```
 
